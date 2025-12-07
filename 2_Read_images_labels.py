@@ -77,24 +77,26 @@ test_frames  = set(frames[num_train + num_val:])
 # -----------------------------
 # Ensure all classes exist in each split
 # -----------------------------
-def force_class_in_split(target_frames, split_name):
+def ensure_class_in_split(target_frames, split_name):
     added_frames = set()
     for class_id, frames_with_class in class_to_frames.items():
-        # If class not in target split, add a frame containing it
         if not frames_with_class & target_frames:
-            chosen_frame = random.choice(list(frames_with_class))
-            added_frames.add(chosen_frame)
+            chosen = random.choice(list(frames_with_class))
+            added_frames.add(chosen)
     return added_frames
 
-# Force all classes into each split
-train_frames |= force_class_in_split(train_frames, "train")
-val_frames   |= force_class_in_split(val_frames, "val")
-test_frames  |= force_class_in_split(test_frames, "test")
+# Add missing classes to splits
+train_frames |= ensure_class_in_split(train_frames, "train")
+val_frames   |= ensure_class_in_split(val_frames, "val")
+test_frames  |= ensure_class_in_split(test_frames, "test")
 
 # Remove any duplicated frames across splits
-train_frames -= (val_frames | test_frames)
-val_frames   -= (train_frames | test_frames)
-test_frames  -= (train_frames | val_frames)
+all_frames = set()
+for split_frames in [train_frames, val_frames, test_frames]:
+    all_frames |= split_frames
+
+if len(all_frames) != len(train_frames | val_frames | test_frames):
+    print("⚠️ Warning: some frames may still be duplicated across splits!")
 
 # -----------------------------
 # Copy images and labels
@@ -107,10 +109,8 @@ for frame_num, label_files in frame_to_labels.items():
         split = "train"
     elif frame_num in val_frames:
         split = "val"
-    elif frame_num in test_frames:
-        split = "test"
     else:
-        continue  # skip frames not assigned
+        split = "test"
 
     for label_file in label_files:
         base = os.path.basename(label_file)
@@ -129,7 +129,7 @@ for frame_num, label_files in frame_to_labels.items():
         stats[split] += 1
 
 # -----------------------------
-# Print statistics
+# Print stats
 # -----------------------------
 print("\n✅ Train/Val/Test split completed!")
 print(f"Train: {stats['train']} pairs")
